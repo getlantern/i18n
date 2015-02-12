@@ -8,7 +8,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/pivotal-cf-experimental/jibber_jabber"
+	"github.com/getlantern/jibber_jabber"
 )
 
 // T consults the translated text by 'key' from the locale file specified when GetT(),

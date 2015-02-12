@@ -79,6 +79,12 @@ func TestGoroutine(t *testing.T) {
 	wg.Wait()
 }
 
+func TestUserT(t *testing.T) {
+	SetLocaleDir("locale")
+	tr, err := GetUserT()
+	assert.NoError(t, err, "should load user's default locale")
+	assertTranslation(t, tr, "HELLO", "Hello!")
+}
 func assertTranslation(t *testing.T, tr T, k string, e string) {
 	if s := tr(k); s != e {
 		t.Errorf("Expect T(\"%s\") to be \"%s\", got \"%s\"\n", k, e, s)
