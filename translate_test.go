@@ -56,7 +56,7 @@ func TestFallback(t *testing.T) {
 func TestTarFS(t *testing.T) {
 	fs, err := tarfs.New(locale.Resources, "")
 	assert.NoError(t, err, "should load tarfs")
-	SetLocaleFS(*fs)
+	SetLocaleFS(fs)
 	tr, err := GetT("en_US")
 	assert.NoError(t, err, "should load locale from tarfs")
 	assertTranslation(t, tr, "HELLO", "Hello!")
