@@ -22,6 +22,16 @@ var (
 
 type GetMessagesFunc func(locale string) ([]byte, error)
 
+// Trans translates the given key into a message based on the current locale,
+// formatting the string using the supplied (optional) args. This method will
+// fall back to other locales if the key isn't defined for the current locale.
+// The search order (with examples) is as follows:
+//
+//   1. current locale        (zh_CN)
+//   2. lang only             (zh)
+//   3. default locale        (en_US)
+//   4. lang only of default  (en)
+//
 func Trans(key string, args ...interface{}) string {
 	mutex.RLock()
 	defer mutex.RUnlock()
@@ -47,6 +57,13 @@ func Trans(key string, args ...interface{}) string {
 	return s
 }
 
+// Init initializes i18n using the given GetMessagesFn to look up JSON message
+// catalogs for locales, and setting the default locale to the given value.
+// The JSON message catalog is just a map of string keys to string messages. The
+// messages can contain standard Go format strings.
+//
+// If the default locale is not in a valid format, this function will return
+// an error.
 func Init(getMessagesFn GetMessagesFunc, defaultlocale string) error {
 	mutex.Lock()
 	defer mutex.Unlock()
@@ -70,6 +87,9 @@ func Init(getMessagesFn GetMessagesFunc, defaultlocale string) error {
 	return nil
 }
 
+// SetLocale sets the current locale to the given value. If the locale is not in
+// a valid format, this function will return an error and leave the current
+// locale as is.
 func SetLocale(locale string) error {
 	mutex.Lock()
 	defer mutex.Unlock()
