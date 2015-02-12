@@ -7,13 +7,30 @@ import (
 	"net/http"
 	"regexp"
 	"strings"
+
+	"github.com/pivotal-cf-experimental/jibber_jabber"
 )
 
 // T consults the translated text by 'key' from the locale file specified when GetT(),
-// then the default locale file, which defaults 'en_US'
+// then the default locale file, which defaults to 'en_US'
 // but can be changed by SetDefaultLocale().
 // If neither file containes it, will return 'key' surrounded by braces.
 type T func(key string) (text string)
+
+// GetUserT returns T according to current user's locale
+func GetUserT() (t T, err error) {
+	fallbackLocale := "en_US"
+	userLocale, err := jibber_jabber.DetectIETF()
+	if err != nil || userLocale == "C" {
+		userLocale = fallbackLocale
+	}
+	if t, err = GetT(userLocale); err != nil {
+		if t, err = GetT(fallbackLocale); err != nil {
+			err = fmt.Errorf("Can't load user locale %s, nor fallback locale %s", userLocale, fallbackLocale)
+		}
+	}
+	return
+}
 
 // GetT appends ".json" to locale passed in, and loads the file
 // under the directory specified by SetLocaleDir()
