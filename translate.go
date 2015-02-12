@@ -13,53 +13,30 @@ import (
 var (
 	log = golog.LoggerFor("i18n")
 
-	getLocaleData GetLocaleDataFunc
+	getMessages   GetMessagesFunc
 	defaultLocale loc
 	currentLocale loc
-	locales       map[string]trData
+	msgsByLang    map[string]messages
 	mutex         sync.RWMutex
 )
 
-type GetLocaleDataFunc func(locale string) ([]byte, error)
-
-func Init(getLocaleDataFn GetLocaleDataFunc, defaultlocale string) error {
-	mutex.Lock()
-	defer mutex.Unlock()
-	getLocaleData = getLocaleDataFn
-	var err error
-	defaultLocale, err = newLocale(defaultlocale)
-	if err != nil {
-		return err
-	}
-	m := loadMap(getLocaleData, defaultLocale)
-	locales = map[string]trData{defaultLocale.full: m}
-	if !defaultLocale.isLangOnly() {
-		// Also load the language-only resource (if available)
-		locales[defaultLocale.lang] = loadMap(getLocaleData, defaultLocale.langOnly())
-	}
-
-	currentLocale, err = newLocale("en_US") // TODO: look this up with jibber_jabber
-	if err != nil {
-		return err
-	}
-	return nil
-}
+type GetMessagesFunc func(locale string) ([]byte, error)
 
 func Trans(key string, args ...interface{}) string {
 	mutex.RLock()
 	defer mutex.RUnlock()
-	s := locales[currentLocale.full][key]
+	s := msgsByLang[currentLocale.full][key]
 	if s == "" {
 		// Try only the language part
-		s = locales[currentLocale.lang][key]
+		s = msgsByLang[currentLocale.lang][key]
 	}
 	if s == "" {
 		// Try the default locale
-		s = locales[defaultLocale.full][key]
+		s = msgsByLang[defaultLocale.full][key]
 	}
 	if s == "" {
 		// Try only the language part of the default locale
-		s = locales[defaultLocale.lang][key]
+		s = msgsByLang[defaultLocale.lang][key]
 	}
 
 	// Format string
@@ -70,6 +47,29 @@ func Trans(key string, args ...interface{}) string {
 	return s
 }
 
+func Init(getMessagesFn GetMessagesFunc, defaultlocale string) error {
+	mutex.Lock()
+	defer mutex.Unlock()
+	getMessages = getMessagesFn
+	var err error
+	defaultLocale, err = newLocale(defaultlocale)
+	if err != nil {
+		return err
+	}
+	m := loadMessages(defaultLocale)
+	msgsByLang = map[string]messages{defaultLocale.full: m}
+	if !defaultLocale.isLangOnly() {
+		// Also load the language-only resource (if available)
+		msgsByLang[defaultLocale.lang] = loadMessages(defaultLocale.langOnly())
+	}
+
+	currentLocale, err = newLocale("en_US") // TODO: look this up with jibber_jabber
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 func SetLocale(locale string) error {
 	mutex.Lock()
 	defer mutex.Unlock()
@@ -78,15 +78,15 @@ func SetLocale(locale string) error {
 		return err
 	}
 
-	m := locales[l.full]
+	m := msgsByLang[l.full]
 	if m == nil {
-		locales[l.full] = loadMap(getLocaleData, l)
+		msgsByLang[l.full] = loadMessages(l)
 	}
 	if !l.isLangOnly() {
 		// Also load the data for the language portion of the locale
-		m = locales[l.lang]
+		m = msgsByLang[l.lang]
 		if m == nil {
-			locales[l.lang] = loadMap(getLocaleData, l)
+			msgsByLang[l.lang] = loadMessages(l)
 		}
 	}
 
@@ -125,11 +125,12 @@ func (l loc) String() string {
 	return l.full
 }
 
-type trData map[string]string
+// messages is a message catalog from key to message
+type messages map[string]string
 
-func loadMap(getLocaleData GetLocaleDataFunc, l loc) trData {
-	m := make(trData, 0)
-	buf, err := getLocaleData(l.full)
+func loadMessages(l loc) messages {
+	m := make(messages, 0)
+	buf, err := getMessages(l.full)
 	if err != nil {
 		log.Debugf("Error getting locale data for %v: %v", l, err)
 		return m

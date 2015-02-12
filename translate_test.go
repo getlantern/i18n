@@ -17,13 +17,16 @@ func TestAll(t *testing.T) {
 	assert.Error(t, err, "Initializing with bad locale should fail")
 	err = Init(lookup, "en_US")
 	if assert.NoError(t, err, "Initializing with defined default locale should succeed") {
-		assertTrans(t, "English translation should have contained name", "en_US", "HELLO", name)
+		assertTrans(t, "English translation should contain name", "en_US", "HELLO", name)
+		assertTrans(t, "Default locale should fall back to language-only when necessary", "en", "ONLY_IN_EN", name)
+		s := Trans("ONLY_IN_ZH")
+		assert.Equal(t, "", s, "Non-existent key should return blank message")
 
 		err = SetLocale("afewradsf")
 		assert.Error(t, err, "Setting bad locale should fail")
 		err = SetLocale("zh")
 		if assert.NoError(t, err, "Setting non-defined locale should succeed") {
-			assertTrans(t, "Non-defined translation should have contained name", "en_US", "HELLO", name)
+			assertTrans(t, "Non-defined translation should have fallen back to en_US", "en_US", "IN_EN")
 		}
 
 		err = SetLocale("zh_CN")
@@ -55,12 +58,14 @@ func initTestLocales(t *testing.T) {
 
 var testLocales = map[string]map[string]string{
 	"en_US": map[string]string{
-		"HELLO":      "Hello %s!",
-		"ONLY_IN_EN": "I speak America English!",
+		"HELLO":         "Hello %s!",
+		"IN_EN":         "I speak America English!",
+		"ONLY_IN_EN_US": "Howdie!",
 	},
 
 	"en": map[string]string{
-		"ONLY_IN_EN": "I speak Generic English!",
+		"IN_EN":      "I speak Generic English!",
+		"ONLY_IN_EN": "I'm special!",
 	},
 
 	"zh_CN": map[string]string{
