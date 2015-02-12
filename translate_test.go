@@ -23,6 +23,12 @@ func TestTranslate(t *testing.T) {
 	assertTranslation(t, tr, "HELLO", "Hello!")
 	trCN, _ := GetT("zh_CN")
 	assertTranslation(t, trCN, "HELLO", "你好!")
+	trCN, _ = GetT("zh-CN")
+	assertTranslation(t, trCN, "HELLO", "你好!")
+	trFA, _ := GetT("fa")
+	assertTranslation(t, trFA, "HELLO", "!سلام")
+	trFA2, _ := GetT("fa-IR")
+	assertTranslation(t, trFA2, "HELLO", "!سلام")
 	_, err = GetT("zz_YY")
 	assert.Error(t, err, "should not load non-existing locale")
 

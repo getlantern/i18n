@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"regexp"
+	"strings"
 )
 
 // T consults the translated text by 'key' from the locale file specified when GetT(),
@@ -16,10 +18,11 @@ type T func(key string) (text string)
 // GetT appends ".json" to locale passed in, and loads the file
 // under the directory specified by SetLocaleDir()
 // or from the file system specified by SetLocaleFS(),
-// and returns the translation function.
+// and returns the translate function.
+// If the file didn't found, it will try the language part (i.e. fa for fa_IR).
 // It also loads the default locale file which defaults to 'en_US.json'
 // but can be changed in advance through SetDefaultLocale().
-// The locale file should be json file with only key / text pairs of translations.
+// The locale files should be json file with only key / text pairs of translations.
 func GetT(locale string) (t T, err error) {
 	var m, defaultMap trMap
 	if m, err = loadMap(locale); err != nil {
@@ -71,11 +74,20 @@ func loadMap(locale string) (m trMap, err error) {
 		err = fmt.Errorf("SetLocaleDir() or SetLocaleFS() before GetT()")
 		return
 	}
+	if matched, _ := regexp.MatchString("^[a-z]{2}([_-][A-Z]{2}){0,1}$", locale); !matched {
+		err = fmt.Errorf("Malformated locale string %s", locale)
+		return
+	}
+	locale = strings.Replace(locale, "-", "_", -1)
 	fileName := locale + ".json"
 	var f http.File
 	if f, err = fs.Open(fileName); err != nil {
-		err = fmt.Errorf("Error open file %s: %s", fileName, err)
-		return
+		parts := strings.Split(locale, "_")
+		langFileName := parts[0] + ".json"
+		if f, err = fs.Open(langFileName); err != nil {
+			err = fmt.Errorf("Neither %s nor %s can be opened: %s", fileName, langFileName, err)
+			return
+		}
 	}
 	var buf []byte
 	if buf, err = ioutil.ReadAll(f); err != nil {
