@@ -15,8 +15,6 @@ func TestAll(t *testing.T) {
 
 	err := Init(lookup, "adsfasdf")
 	assert.Error(t, err, "Initializing with bad locale should fail")
-	err = Init(lookup, "en")
-	assert.Error(t, err, "Initializing with non-defined default locale should fail")
 	err = Init(lookup, "en_US")
 	if assert.NoError(t, err, "Initializing with defined default locale should succeed") {
 		assertTrans(t, "English translation should have contained name", "en_US", "HELLO", name)
@@ -24,7 +22,10 @@ func TestAll(t *testing.T) {
 		err = SetLocale("afewradsf")
 		assert.Error(t, err, "Setting bad locale should fail")
 		err = SetLocale("zh")
-		assert.Error(t, err, "Setting non-defined locale should fail")
+		if assert.NoError(t, err, "Setting non-defined locale should succeed") {
+			assertTrans(t, "Non-defined translation should have contained name", "en_US", "HELLO", name)
+		}
+
 		err = SetLocale("zh_CN")
 		if assert.NoError(t, err, "Setting defined locale should succeed") {
 			assertTrans(t, "Chinese translation should have contained name", "zh_CN", "HELLO", name)

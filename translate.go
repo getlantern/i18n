@@ -6,12 +6,16 @@ import (
 	"regexp"
 	"strings"
 	"sync"
+
+	"github.com/getlantern/golog"
 )
 
 var (
+	log = golog.LoggerFor("i18n")
+
 	getLocaleData GetLocaleDataFunc
-	defaultLocale string
-	currentLocale string
+	defaultLocale loc
+	currentLocale loc
 	locales       map[string]trData
 	mutex         sync.RWMutex
 )
@@ -23,100 +27,119 @@ func Init(getLocaleDataFn GetLocaleDataFunc, defaultlocale string) error {
 	defer mutex.Unlock()
 	getLocaleData = getLocaleDataFn
 	var err error
-	defaultLocale, err = normalizeLocale(defaultlocale)
+	defaultLocale, err = newLocale(defaultlocale)
 	if err != nil {
 		return err
 	}
-	m, err := loadMap(getLocaleData, defaultLocale)
-	if err != nil {
-		return err
+	m := loadMap(getLocaleData, defaultLocale)
+	locales = map[string]trData{defaultLocale.full: m}
+	if !defaultLocale.isLangOnly() {
+		// Also load the language-only resource (if available)
+		locales[defaultLocale.lang] = loadMap(getLocaleData, defaultLocale.langOnly())
 	}
-	locales = map[string]trData{defaultLocale: m}
 
-	currentLocale = "en_US" // TODO: look this up with jibber_jabber
+	currentLocale, err = newLocale("en_US") // TODO: look this up with jibber_jabber
+	if err != nil {
+		return err
+	}
 	return nil
 }
 
 func Trans(key string, args ...interface{}) string {
 	mutex.RLock()
 	defer mutex.RUnlock()
-	s := locales[currentLocale][key]
+	s := locales[currentLocale.full][key]
 	if s == "" {
-		// Try just the language part
-		parts := strings.Split(currentLocale, "_")
-		langOnly := parts[0]
-		m := locales[langOnly]
-		if m == nil {
-			// Try the default locale
-			m = locales[defaultLocale]
-		}
-		s = m[key]
+		// Try only the language part
+		s = locales[currentLocale.lang][key]
+	}
+	if s == "" {
+		// Try the default locale
+		s = locales[defaultLocale.full][key]
+	}
+	if s == "" {
+		// Try only the language part of the default locale
+		s = locales[defaultLocale.lang][key]
 	}
 
+	// Format string
 	if s != "" && len(args) > 0 {
 		s = fmt.Sprintf(s, args...)
 	}
+
 	return s
 }
 
 func SetLocale(locale string) error {
 	mutex.Lock()
 	defer mutex.Unlock()
-	var err error
-	locale, err = normalizeLocale(locale)
+	l, err := newLocale(locale)
 	if err != nil {
 		return err
 	}
-	m := locales[locale]
+
+	m := locales[l.full]
 	if m == nil {
-		m, err = loadMap(getLocaleData, locale)
-		if err != nil {
-			return err
-		}
-		locales[locale] = m
+		locales[l.full] = loadMap(getLocaleData, l)
 	}
-	currentLocale = locale
+	if !l.isLangOnly() {
+		// Also load the data for the language portion of the locale
+		m = locales[l.lang]
+		if m == nil {
+			locales[l.lang] = loadMap(getLocaleData, l)
+		}
+	}
+
+	currentLocale = l
 	return nil
 }
 
-func normalizeLocale(locale string) (string, error) {
-	if matched, _ := regexp.MatchString("^[a-z]{2}([_-][A-Z]{2}){0,1}$", locale); !matched {
-		return "", fmt.Errorf("Malformated locale string %s", locale)
+// loc is a parsed locale
+type loc struct {
+	full string
+	lang string
+}
+
+func newLocale(full string) (loc, error) {
+	if matched, _ := regexp.MatchString("^[a-z]{2}([_-][A-Z]{2}){0,1}$", full); !matched {
+		return loc{}, fmt.Errorf("Malformated locale string %s", full)
 	}
-	locale = strings.Replace(locale, "-", "_", -1)
-	parts := strings.Split(locale, "_")
+	full = strings.Replace(full, "-", "_", -1)
+	parts := strings.Split(full, "_")
 	lang := strings.ToLower(parts[0])
-	if len(parts) == 1 {
-		return lang, nil
-	}
-	region := strings.ToUpper(parts[1])
-	return fmt.Sprintf("%v_%v", lang, region), nil
+	return loc{
+		full: full,
+		lang: lang,
+	}, nil
+}
+
+func (l loc) isLangOnly() bool {
+	return l.full == l.lang
+}
+
+func (l loc) langOnly() loc {
+	return loc{l.lang, l.lang}
+}
+
+func (l loc) String() string {
+	return l.full
 }
 
 type trData map[string]string
 
-func loadMap(getLocaleData GetLocaleDataFunc, locale string) (m trData, err error) {
-	if matched, _ := regexp.MatchString("^[a-z]{2}([_-][A-Z]{2}){0,1}$", locale); !matched {
-		err = fmt.Errorf("Malformated locale string %v", locale)
-		return
-	}
-	locale = strings.Replace(locale, "-", "_", -1)
-	buf, err := getLocaleData(locale)
+func loadMap(getLocaleData GetLocaleDataFunc, l loc) trData {
+	m := make(trData, 0)
+	buf, err := getLocaleData(l.full)
 	if err != nil {
-		err = fmt.Errorf("No locale data found for %v", err)
-		// parts := strings.Split(locale, "_")
-		// langOnly := parts[0]
-		// buf, err = getLocaleData(langOnly)
-		// if err != nil {
-		// 	err = fmt.Errorf("Neither %v nor %v have localization data: %v", locale, langOnly, err)
-		// 	return
-		// }
+		log.Debugf("Error getting locale data for %v: %v", l, err)
+		return m
 	}
-
-	m = make(trData, 0)
+	if buf == nil {
+		log.Debugf("No locale data found for %v", l)
+		return m
+	}
 	if err = json.Unmarshal(buf, &m); err != nil {
-		err = fmt.Errorf("Error decoding json for locale %v: %v", locale, err)
+		log.Errorf("Error decoding json for locale %v: %v", l, err)
 	}
-
-	return
+	return m
 }
