@@ -3,99 +3,120 @@ package i18n
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
-	"net/http"
 	"regexp"
 	"strings"
+	"sync"
 )
 
-// T consults the translated text by 'key' from the locale file specified when GetT(),
-// then the default locale file, which defaults 'en_US'
-// but can be changed by SetDefaultLocale().
-// If neither file containes it, will return 'key' surrounded by braces.
-type T func(key string) (text string)
+var (
+	getLocaleData GetLocaleDataFunc
+	defaultLocale string
+	currentLocale string
+	locales       map[string]trData
+	mutex         sync.RWMutex
+)
 
-// GetT appends ".json" to locale passed in, and loads the file
-// under the directory specified by SetLocaleDir()
-// or from the file system specified by SetLocaleFS(),
-// and returns the translate function.
-// If the file didn't found, it will try the language part (i.e. fa for fa_IR).
-// It also loads the default locale file which defaults to 'en_US.json'
-// but can be changed in advance through SetDefaultLocale().
-// The locale files should be json file with only key / text pairs of translations.
-func GetT(locale string) (t T, err error) {
-	var m, defaultMap trMap
-	if m, err = loadMap(locale); err != nil {
-		err = fmt.Errorf("Error load locale %s: %s", locale, err)
-		return
+type GetLocaleDataFunc func(locale string) ([]byte, error)
+
+func Init(getLocaleDataFn GetLocaleDataFunc, defaultlocale string) error {
+	mutex.Lock()
+	defer mutex.Unlock()
+	getLocaleData = getLocaleDataFn
+	var err error
+	defaultLocale, err = normalizeLocale(defaultlocale)
+	if err != nil {
+		return err
 	}
-	if locale == defaultLocale {
-		defaultMap = m
-	} else if defaultMap, err = loadMap(defaultLocale); err != nil {
-		err = fmt.Errorf("Error load default locale %s: %s", locale, err)
-		return
+	m, err := loadMap(getLocaleData, defaultLocale)
+	if err != nil {
+		return err
 	}
-	t = func(k string) (s string) {
-		if s = m[k]; s == "" {
-			if s = defaultMap[k]; s == "" {
-				s = "{" + k + "}"
-			}
+	locales = map[string]trData{defaultLocale: m}
+
+	currentLocale = "en_US" // TODO: look this up with jibber_jabber
+	return nil
+}
+
+func Trans(key string, args ...interface{}) string {
+	mutex.RLock()
+	defer mutex.RUnlock()
+	s := locales[currentLocale][key]
+	if s == "" {
+		// Try just the language part
+		parts := strings.Split(currentLocale, "_")
+		langOnly := parts[0]
+		m := locales[langOnly]
+		if m == nil {
+			// Try the default locale
+			m = locales[defaultLocale]
 		}
-		return
+		s = m[key]
 	}
-	return
-}
 
-// SetDefaultLocale sets the locale to use if T() can't found a translation for a key,
-// only affects GetT() after this call.
-func SetDefaultLocale(l string) {
-	defaultLocale = l
-}
-
-// SetLocaleDir sets the directory from which to load locale files
-// only affects GetT() after this call.
-func SetLocaleDir(d string) {
-	fs = http.Dir(d)
-}
-
-// SetLocaleFS sets the http.FileStream from from which to load locale files,
-// rather than local directory, only affects GetT() after this call.
-func SetLocaleFS(fs http.FileSystem) {
-	fs = fs
-}
-
-type trMap map[string]string
-
-var fs http.FileSystem
-var defaultLocale string = "en_US"
-
-func loadMap(locale string) (m trMap, err error) {
-	if fs == nil {
-		err = fmt.Errorf("SetLocaleDir() or SetLocaleFS() before GetT()")
-		return
+	if s != "" && len(args) > 0 {
+		s = fmt.Sprintf(s, args...)
 	}
+	return s
+}
+
+func SetLocale(locale string) error {
+	mutex.Lock()
+	defer mutex.Unlock()
+	var err error
+	locale, err = normalizeLocale(locale)
+	if err != nil {
+		return err
+	}
+	m := locales[locale]
+	if m == nil {
+		m, err = loadMap(getLocaleData, locale)
+		if err != nil {
+			return err
+		}
+		locales[locale] = m
+	}
+	currentLocale = locale
+	return nil
+}
+
+func normalizeLocale(locale string) (string, error) {
 	if matched, _ := regexp.MatchString("^[a-z]{2}([_-][A-Z]{2}){0,1}$", locale); !matched {
-		err = fmt.Errorf("Malformated locale string %s", locale)
+		return "", fmt.Errorf("Malformated locale string %s", locale)
+	}
+	locale = strings.Replace(locale, "-", "_", -1)
+	parts := strings.Split(locale, "_")
+	lang := strings.ToLower(parts[0])
+	if len(parts) == 1 {
+		return lang, nil
+	}
+	region := strings.ToUpper(parts[1])
+	return fmt.Sprintf("%v_%v", lang, region), nil
+}
+
+type trData map[string]string
+
+func loadMap(getLocaleData GetLocaleDataFunc, locale string) (m trData, err error) {
+	if matched, _ := regexp.MatchString("^[a-z]{2}([_-][A-Z]{2}){0,1}$", locale); !matched {
+		err = fmt.Errorf("Malformated locale string %v", locale)
 		return
 	}
 	locale = strings.Replace(locale, "-", "_", -1)
-	fileName := locale + ".json"
-	var f http.File
-	if f, err = fs.Open(fileName); err != nil {
-		parts := strings.Split(locale, "_")
-		langFileName := parts[0] + ".json"
-		if f, err = fs.Open(langFileName); err != nil {
-			err = fmt.Errorf("Neither %s nor %s can be opened: %s", fileName, langFileName, err)
-			return
-		}
+	buf, err := getLocaleData(locale)
+	if err != nil {
+		err = fmt.Errorf("No locale data found for %v", err)
+		// parts := strings.Split(locale, "_")
+		// langOnly := parts[0]
+		// buf, err = getLocaleData(langOnly)
+		// if err != nil {
+		// 	err = fmt.Errorf("Neither %v nor %v have localization data: %v", locale, langOnly, err)
+		// 	return
+		// }
 	}
-	var buf []byte
-	if buf, err = ioutil.ReadAll(f); err != nil {
-		err = fmt.Errorf("Error read file %s: %s", fileName, err)
-		return
-	}
+
+	m = make(trData, 0)
 	if err = json.Unmarshal(buf, &m); err != nil {
-		err = fmt.Errorf("Error decode json file %s: %s", fileName, err)
+		err = fmt.Errorf("Error decoding json for locale %v: %v", locale, err)
 	}
+
 	return
 }
