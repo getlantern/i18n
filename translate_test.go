@@ -1,6 +1,7 @@
 package i18n
 
 import (
+	"sync"
 	"testing"
 
 	"github.com/getlantern/i18n/locale"
@@ -53,6 +54,23 @@ func TestTarFS(t *testing.T) {
 	tr, err := GetT("en_US")
 	assert.NoError(t, err, "should load locale from tarfs")
 	assertTranslation(t, tr, "HELLO", "Hello!")
+}
+
+func TestGoroutine(t *testing.T) {
+	SetDefaultLocale("en_US")
+	SetLocaleDir("locale")
+	cn, _ := GetT("zh_CN")
+	var wg sync.WaitGroup
+	wg.Add(2)
+	go func() {
+		assertTranslation(t, cn, "HELLO", "你好!")
+		wg.Done()
+	}()
+	go func() {
+		assertTranslation(t, cn, "ONLY_IN_EN", "I speak English!")
+		wg.Done()
+	}()
+	wg.Wait()
 }
 
 func assertTranslation(t *testing.T, tr T, k string, e string) {
