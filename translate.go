@@ -8,6 +8,7 @@ import (
 	"sync"
 
 	"github.com/getlantern/golog"
+	"github.com/getlantern/jibber_jabber"
 )
 
 var (
@@ -80,9 +81,21 @@ func Init(getMessagesFn GetMessagesFunc, defaultlocale string) error {
 		msgsByLang[defaultLocale.lang] = loadMessages(defaultLocale.langOnly())
 	}
 
-	currentLocale, err = newLocale("en_US") // TODO: look this up with jibber_jabber
+	// Default current locale to defaultLocale
+	currentLocale = defaultLocale
+	userLocale, err := jibber_jabber.DetectIETF()
 	if err != nil {
-		return err
+		log.Debugf("Error detecting user locale, defaulting to %v: %v", currentLocale, err)
+	} else if userLocale == "C" {
+		log.Debugf("Unable to detect user locale, defaulting to %v", currentLocale)
+	} else {
+		currentLocale, err = newLocale(userLocale)
+		if err != nil {
+			currentLocale = defaultLocale
+			log.Debugf("Got invalid user locale %v, defaulting to %v: %v", userLocale, currentLocale, err)
+		} else {
+			log.Debugf("Set current locale to %v based on user's locale", currentLocale)
+		}
 	}
 	return nil
 }
