@@ -23,7 +23,7 @@ var (
 	mutex         sync.RWMutex
 )
 
-type GetMessagesFunc func(locale string) ([]byte, error)
+type GetMessagesFunc func(locale string) map[string]string
 
 // Trans translates the given key into a message based on the current locale,
 // formatting the string using the supplied (optional) args. This method will
@@ -76,11 +76,11 @@ func Init(getMessagesFn GetMessagesFunc, defaultlocale string) error {
 	if err != nil {
 		return err
 	}
-	m := loadMessages(defaultLocale)
+	m := getMessages(defaultLocale.full)
 	msgsByLang = map[string]messages{defaultLocale.full: m}
 	if !defaultLocale.isLangOnly() {
 		// Also load the language-only resource (if available)
-		msgsByLang[defaultLocale.lang] = loadMessages(defaultLocale.langOnly())
+		msgsByLang[defaultLocale.lang] = getMessages(defaultLocale.lang)
 	}
 
 	// Default current locale to defaultLocale
@@ -102,11 +102,32 @@ func Init(getMessagesFn GetMessagesFunc, defaultlocale string) error {
 	return nil
 }
 
+// InitWithJson is like Init but takes a function that loads JSON data for the
+// messages.
+func InitWithJson(fn func(locale string) ([]byte, error), defaultlocale string) error {
+	return Init(func(locale string) map[string]string {
+		m := make(messages, 0)
+		buf, err := fn(locale)
+		if err != nil {
+			log.Debugf("Error getting locale data for %v: %v", locale, err)
+			return m
+		}
+		if buf == nil {
+			log.Debugf("No locale data found for %v", locale)
+			return m
+		}
+		if err = json.Unmarshal(buf, &m); err != nil {
+			log.Errorf("Error decoding json for locale %v: %v", locale, err)
+		}
+		return m
+	}, defaultlocale)
+}
+
 // InitWithDir is like Init, but uses resources read from files in the given
 // messagesDir with names corresponding to locales (e.g. en_US).
 func InitWithDir(messagesDir string, defaultlocale string) error {
-	return Init(func(locale string) ([]byte, error) {
-		return ioutil.ReadFile(filepath.Join(messagesDir, locale))
+	return InitWithJson(func(locale string) ([]byte, error) {
+		return ioutil.ReadFile(filepath.Join(messagesDir, locale+".json"))
 	}, defaultlocale)
 }
 
@@ -123,13 +144,13 @@ func SetLocale(locale string) error {
 
 	m := msgsByLang[l.full]
 	if m == nil {
-		msgsByLang[l.full] = loadMessages(l)
+		msgsByLang[l.full] = getMessages(l.full)
 	}
 	if !l.isLangOnly() {
 		// Also load the data for the language portion of the locale
 		m = msgsByLang[l.lang]
 		if m == nil {
-			msgsByLang[l.lang] = loadMessages(l)
+			msgsByLang[l.lang] = getMessages(l.lang)
 		}
 	}
 
@@ -160,10 +181,6 @@ func (l loc) isLangOnly() bool {
 	return l.full == l.lang
 }
 
-func (l loc) langOnly() loc {
-	return loc{l.lang, l.lang}
-}
-
 func (l loc) String() string {
 	return l.full
 }
@@ -171,19 +188,19 @@ func (l loc) String() string {
 // messages is a message catalog from key to message
 type messages map[string]string
 
-func loadMessages(l loc) messages {
-	m := make(messages, 0)
-	buf, err := getMessages(l.full)
-	if err != nil {
-		log.Debugf("Error getting locale data for %v: %v", l, err)
-		return m
-	}
-	if buf == nil {
-		log.Debugf("No locale data found for %v", l)
-		return m
-	}
-	if err = json.Unmarshal(buf, &m); err != nil {
-		log.Errorf("Error decoding json for locale %v: %v", l, err)
-	}
-	return m
-}
+// func loadMessages(l loc) messages {
+// 	m := make(messages, 0)
+// 	buf, err := getMessages(l.full)
+// 	if err != nil {
+// 		log.Debugf("Error getting locale data for %v: %v", l, err)
+// 		return m
+// 	}
+// 	if buf == nil {
+// 		log.Debugf("No locale data found for %v", l)
+// 		return m
+// 	}
+// 	if err = json.Unmarshal(buf, &m); err != nil {
+// 		log.Errorf("Error decoding json for locale %v: %v", l, err)
+// 	}
+// 	return m
+// }
