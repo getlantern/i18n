@@ -57,6 +57,15 @@ func SetLocaleFS(fs http.FileSystem) {
 	fs = fs
 }
 
+// UseOSLocale detect OS locale for current user and let i18n to use it
+func UseOSLocale() {
+	userLocale, err := jibber_jabber.DetectIETF()
+	if err != nil || userLocale == "C" {
+		userLocale = defaultLocale
+	}
+	SetLocale(userLocale)
+}
+
 // SetLocale sets the current locale to the given value. If the locale is not in
 // a valid format, this function will return an error and leave the current
 // locale as is.
@@ -107,13 +116,4 @@ func loadMapFromFile(locale string) (m map[string]string, err error) {
 		err = fmt.Errorf("Error decode json file %s: %s", fileName, err)
 	}
 	return
-}
-
-// Detect OS locale on startup, no setup required if files under 'locale'
-func init() {
-	userLocale, err := jibber_jabber.DetectIETF()
-	if err != nil || userLocale == "C" {
-		userLocale = defaultLocale
-	}
-	SetLocale(defaultLocale)
 }

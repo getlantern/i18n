@@ -10,11 +10,11 @@ import (
 )
 
 func TestTranslate(t *testing.T) {
-	// defaults to en_US then en
+	UseOSLocale()
 	assertTranslation(t, "I speak America English!", "ONLY_IN_EN_US")
 	assertTranslation(t, "I speak Generic English!", "ONLY_IN_EN")
 
-	SetLocaleDir("non-exist-dir")
+	SetLocaleDir("not-existed-dir")
 	err := SetLocale("en_US")
 	assert.Error(t, err, "should error if dir is not existed")
 
