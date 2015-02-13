@@ -16,11 +16,11 @@ func TestTranslate(t *testing.T) {
 	assertTranslation(t, "I speak Generic English!", "ONLY_IN_EN")
 	assertTranslation(t, "", "NOT_EXISTED")
 
-	WillReadFromDir("not-existed-dir")
+	SetMessagesDir("not-existed-dir")
 	err := SetLocale("en_US")
 	assert.Error(t, err, "should error if dir is not existed")
 
-	WillReadFromDir("locale")
+	SetMessagesDir("locale")
 	assert.Error(t, SetLocale("e0"), "should error on malformed locale")
 	assert.Error(t, SetLocale("e0-DO"), "should error on malformed locale")
 	assert.Error(t, SetLocale("e0-DO.C"), "should error on malformed locale")
@@ -45,7 +45,7 @@ func TestTarFS(t *testing.T) {
 	fromTar := func(path string) ([]byte, error) {
 		return fs.Get(path)
 	}
-	WillReadByFunc(fromTar)
+	SetMessagesFunc(fromTar)
 	assert.NoError(t, err, "should load locale from tarfs")
 	assertTranslation(t, "", "ONLY_IN_ZH")
 	SetLocale("zh_CN")

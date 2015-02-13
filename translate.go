@@ -51,9 +51,9 @@ func T(key string, args ...interface{}) string {
 	return s
 }
 
-// WillReadFromDir sets the directory from which to load translations
+// SetMessagesDir sets the directory from which to load translations
 // if they are not under the default directory 'locale'
-func WillReadFromDir(d string) {
+func SetMessagesDir(d string) {
 	readFunc = makeReadFunc(d)
 }
 
@@ -73,8 +73,8 @@ func makeReadFunc(d string) ReadFunc {
 	}
 }
 
-// WillReadByFunc tells i18n to read translations through ReadFunc
-func WillReadByFunc(f ReadFunc) {
+// SetMessagesFunc tells i18n to read translations through ReadFunc
+func SetMessagesFunc(f ReadFunc) {
 	readFunc = f
 }
 

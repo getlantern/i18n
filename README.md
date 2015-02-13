@@ -14,10 +14,10 @@ Place all you translation json files under 'locale' directory.
 `SetLocale("en_US")`
 
 If your translations is under another place,
-`WillReadFromDir("mydir")`
+`SetMessagesDir("mydir")`
 
 Or feed from in memory data structure.
-`WillReadByFunc(func)`
+`SetMessagesFunc(func)`
 
 ### Use
 
