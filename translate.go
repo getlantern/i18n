@@ -4,7 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
-	"net/http"
+	"os"
+	"path"
 	"regexp"
 	"strings"
 	"sync"
@@ -13,14 +14,19 @@ import (
 	"github.com/getlantern/jibber_jabber"
 )
 
+// ReadFunc is the func provided to WillReadByFunc
+// which returns the byte sequence given a file name
+type ReadFunc func(fileName string) ([]byte, error)
+
 var (
-	localeRegexp  string          = "^[a-z]{2}([_-][A-Z]{2}){0,1}$"
-	log                           = golog.LoggerFor("i18n")
-	fs            http.FileSystem = http.Dir("locale")
-	defaultLocale string          = "en_US"
-	defaultLang   string          = "en"
+	localeRegexp  string   = "^[a-z]{2}([_-][A-Z]{2}){0,1}$"
+	log                    = golog.LoggerFor("i18n")
+	readFunc      ReadFunc = makeReadFunc("locale")
+	defaultLocale string   = "en_US"
+	defaultLang   string   = "en"
 	trMutex       sync.RWMutex
-	trMap         map[string]string
+	// read from a nil map is ok, so leave it uninitialized here
+	trMap map[string]string
 )
 
 // T translates the given key into a message based on the current locale,
@@ -45,16 +51,31 @@ func T(key string, args ...interface{}) string {
 	return s
 }
 
-// SetLocaleDir sets the directory from which to load locale files
+// WillReadFromDir sets the directory from which to load translations
 // if they are not under the default directory 'locale'
-func SetLocaleDir(d string) {
-	fs = http.Dir(d)
+func WillReadFromDir(d string) {
+	readFunc = makeReadFunc(d)
 }
 
-// SetLocaleFS tells i18n to load locale files from a http.FileStream
-// interface rather than local directory.
-func SetLocaleFS(fs http.FileSystem) {
-	fs = fs
+func makeReadFunc(d string) ReadFunc {
+	return func(p string) (buf []byte, err error) {
+		fileName := path.Join(d, p)
+		var f *os.File
+		if f, err = os.Open(fileName); err != nil {
+			err = fmt.Errorf("Error open file %s: %s", fileName, err)
+			return
+		}
+		defer f.Close()
+		if buf, err = ioutil.ReadAll(f); err != nil {
+			err = fmt.Errorf("Error read file %s: %s", fileName, err)
+		}
+		return
+	}
+}
+
+// WillReadByFunc tells i18n to read translations through ReadFunc
+func WillReadByFunc(f ReadFunc) {
+	readFunc = f
 }
 
 // UseOSLocale detect OS locale for current user and let i18n to use it
@@ -102,13 +123,8 @@ func mergeLocaleToMap(dst map[string]string, locale string) {
 
 func loadMapFromFile(locale string) (m map[string]string, err error) {
 	fileName := locale + ".json"
-	var f http.File
-	if f, err = fs.Open(fileName); err != nil {
-		err = fmt.Errorf("Error open file %s: %s", fileName, err)
-		return
-	}
 	var buf []byte
-	if buf, err = ioutil.ReadAll(f); err != nil {
+	if buf, err = readFunc(fileName); err != nil {
 		err = fmt.Errorf("Error read file %s: %s", fileName, err)
 		return
 	}

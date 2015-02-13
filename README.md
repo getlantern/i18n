@@ -4,11 +4,24 @@ A simple i18n library in Go, only supports text translation currently.
 
 # Usage
 
-Place all your translation json files under a directory, then `i18n.SetLocaleDir("<dir here>")`, or `i18n.SetLocaleFS(fs)` to load files from a customized `http.FileStream`.
+### Setup
 
-Then simply (works across goroutines)
+Place all you translation json files under 'locale' directory.
+*  Use current user's locale
+`UseOSLocale()`
+
+*  Specifies locale to use manually
+`SetLocale("en_US")`
+
+If your translations is under another place,
+`WillReadFromDir("mydir")`
+
+Or feed from in memory data structure.
+`WillReadByFunc(func)`
+
+### Use
 
 ```go
-t := i18n.GetT("fa_IR")
-fmt.Println(t("HELLO"))
+t := i18n.T("KEY_OF_STRING")
+t := i18n.T("KEY_OF_FORMAT_STRING", var1, var1, ...)
 ```
