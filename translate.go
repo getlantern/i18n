@@ -3,6 +3,8 @@ package i18n
 import (
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"sync"
@@ -98,6 +100,14 @@ func Init(getMessagesFn GetMessagesFunc, defaultlocale string) error {
 		}
 	}
 	return nil
+}
+
+// InitWithDir is like Init, but uses resources read from files in the given
+// messagesDir with names corresponding to locales (e.g. en_US).
+func InitWithDir(messagesDir string, defaultlocale string) error {
+	return Init(func(locale string) ([]byte, error) {
+		return ioutil.ReadFile(filepath.Join(messagesDir, locale))
+	}, defaultlocale)
 }
 
 // SetLocale sets the current locale to the given value. If the locale is not in
