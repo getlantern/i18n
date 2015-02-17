@@ -84,6 +84,7 @@ func UseOSLocale() {
 	if err != nil || userLocale == "C" {
 		userLocale = defaultLocale
 	}
+	log.Tracef("Use OS locale of current user: %s", userLocale)
 	SetLocale(userLocale)
 }
 
