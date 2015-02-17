@@ -4,8 +4,6 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/getlantern/i18n/locale"
-	"github.com/getlantern/tarfs"
 	"github.com/getlantern/testify/assert"
 )
 
@@ -25,34 +23,43 @@ func TestTranslate(t *testing.T) {
 	assert.Error(t, SetLocale("e0-DO"), "should error on malformed locale")
 	assert.Error(t, SetLocale("e0-DO.C"), "should error on malformed locale")
 	assert.NoError(t, SetLocale("en"), "should change locale")
-	assert.NoError(t, SetLocale("en_US"), "should change locale")
-	assertTranslation(t, "Hello Q!", "HELLO", "Q")
-	assertTranslation(t, "", "NOT_EXISTED", 1)
-	assert.NoError(t, SetLocale("zh_CN"), "should change locale")
-	assertTranslation(t, "Q你好!", "HELLO", "Q")
-
-	// fallbacks
-	assertTranslation(t, "I speak Mandarin!", "ONLY_IN_ZH_CN")
-	assertTranslation(t, "I speak Chinese!", "ONLY_IN_ZH")
-	assertTranslation(t, "I speak America English!", "ONLY_IN_EN_US")
-	assertTranslation(t, "I speak Generic English!", "ONLY_IN_EN")
+	if assert.NoError(t, SetLocale("en_US"), "should change locale") {
+		// formatting
+		assertTranslation(t, "Hello An Argument!", "HELLO", "An Argument")
+		assertTranslation(t, "", "NOT_EXISTED", "extra args")
+	}
+	if assert.NoError(t, SetLocale("zh_CN"), "should change locale") {
+		assertTranslation(t, "An Argument你好!", "HELLO", "An Argument")
+		// fallbacks
+		assertTranslation(t, "I speak Mandarin!", "ONLY_IN_ZH_CN")
+		assertTranslation(t, "I speak Chinese!", "ONLY_IN_ZH")
+		assertTranslation(t, "I speak America English!", "ONLY_IN_EN_US")
+		assertTranslation(t, "I speak Generic English!", "ONLY_IN_EN")
+	}
 }
 
-func TestTarFS(t *testing.T) {
-	fs, err := tarfs.New(locale.Resources, "")
-	assert.NoError(t, err, "should load tarfs")
-	SetLocale("en")
-	fromTar := func(path string) ([]byte, error) {
-		return fs.Get(path)
+func TestReadFromMemory(t *testing.T) {
+	fromMemory := func(path string) ([]byte, error) {
+		switch path {
+		case "en_US.json":
+			return []byte(`{"HELLO": "Hello %s!"}`), nil
+		case "zh_CN.json":
+			return []byte(`{"ONLY_IN_ZH": "I speak Chinese!"}`), nil
+		}
+		return nil, nil
 	}
-	SetMessagesFunc(fromTar)
-	assert.NoError(t, err, "should load locale from tarfs")
-	assertTranslation(t, "", "ONLY_IN_ZH")
-	SetLocale("zh_CN")
-	assertTranslation(t, "I speak Chinese!", "ONLY_IN_ZH")
+	SetMessagesFunc(fromMemory)
+	if assert.NoError(t, SetLocale("en_US"), "should load en_US from memory") {
+		assertTranslation(t, "", "ONLY_IN_ZH")
+	}
+	if assert.NoError(t, SetLocale("zh_CN"), "should load zh_CN from memory") {
+		assertTranslation(t, "I speak Chinese!", "ONLY_IN_ZH")
+	}
 }
 
 func TestGoroutine(t *testing.T) {
+	SetMessagesDir("locale")
+	SetLocale("en_US")
 	var wg sync.WaitGroup
 	wg.Add(2)
 	go func() {
