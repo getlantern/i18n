@@ -42,7 +42,11 @@ var (
 func T(key string, args ...interface{}) string {
 	trMutex.RLock()
 	defer trMutex.RUnlock()
-	s := trMap[key]
+	s, found := trMap[key]
+	if !found {
+		return fmt.Sprintf("[%v]", key)
+	}
+
 	// Format string
 	if s != "" && len(args) > 0 {
 		s = fmt.Sprintf(s, args...)

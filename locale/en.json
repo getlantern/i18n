@@ -1,4 +1,5 @@
 {
   "HELLO": "Hello %s!",
-  "ONLY_IN_EN": "I speak Generic English!"
+  "ONLY_IN_EN": "I speak Generic English!",
+  "BLANK": ""
 }
