@@ -107,8 +107,9 @@ func SetLocale(locale string) (string, error) {
 	if matched, _ := regexp.MatchString(localeRegexp, locale); !matched {
 		return "", fmt.Errorf("Malformated locale string %s", locale)
 	}
-	locale = strings.Replace(locale, "-", "_", -1)
-	parts := strings.Split(locale, "_")
+	const sep = "-"
+	locale = strings.Replace(locale, "_", sep, -1)
+	parts := strings.Split(locale, sep)
 	lang := parts[0]
 	log.Debugf("Setting locale %v", locale)
 	newTrMap := make(map[string]string)
