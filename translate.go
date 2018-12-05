@@ -20,7 +20,7 @@ type ReadFunc func(fileName string) ([]byte, error)
 
 const (
 	localeRegexp  = "^[a-z]{2}([_-][A-Z]{2}){0,1}$"
-	defaultLocale = "en_US"
+	defaultLocale = "en-US"
 	defaultLang   = "en"
 )
 

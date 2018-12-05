@@ -12,16 +12,19 @@ var logger = golog.LoggerFor("i18n-test")
 
 func TestTranslate(t *testing.T) {
 	assertTranslation(t, "[HELLO]", "HELLO")
-	if _, err := UseOSLocale(); err != nil {
+	if locale, err := UseOSLocale(); err != nil {
 		logger.Debugf("Unable to detect and use OS locale: %v", err)
+	} else {
+		logger.Debugf("locale: %v", locale)
 	}
+
 	assertTranslation(t, "I speak America English!", "ONLY_IN_EN_US")
 	assertTranslation(t, "I speak Generic English!", "ONLY_IN_EN")
 	assertTranslation(t, "", "BLANK")
 	assertTranslation(t, "[NOT_EXISTED]", "NOT_EXISTED")
 
 	SetMessagesDir("not-existed-dir")
-	_, err := SetLocale("en_US")
+	_, err := SetLocale("en-US")
 	assert.Error(t, err, "should error if dir is not existed")
 
 	SetMessagesDir("locale")
@@ -34,7 +37,7 @@ func TestTranslate(t *testing.T) {
 		assertTranslation(t, "Hello An Argument!", "HELLO", "An Argument")
 		assertTranslation(t, "[NOT_EXISTED]", "NOT_EXISTED", "extra args")
 	}
-	if assert.NoError(t, setLocale("zh_CN"), "should change locale") {
+	if assert.NoError(t, setLocale("zh-CN"), "should change locale") {
 		assertTranslation(t, "An Argument你好!", "HELLO", "An Argument")
 		// fallbacks
 		assertTranslation(t, "I speak Mandarin!", "ONLY_IN_ZH_CN")
@@ -52,9 +55,9 @@ func setLocale(locale string) error {
 func TestReadFromMemory(t *testing.T) {
 	fromMemory := func(path string) ([]byte, error) {
 		switch path {
-		case "en_US.json":
+		case "en-US.json":
 			return []byte(`{"HELLO": "Hello %s!"}`), nil
-		case "zh_CN.json":
+		case "zh-CN.json":
 			return []byte(`{"ONLY_IN_ZH": "I speak Chinese!"}`), nil
 		}
 		return nil, nil
