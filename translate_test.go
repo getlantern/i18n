@@ -4,13 +4,16 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/getlantern/golog"
 	"github.com/stretchr/testify/assert"
 )
 
+var logger = golog.LoggerFor("i18n-test")
+
 func TestTranslate(t *testing.T) {
 	assertTranslation(t, "[HELLO]", "HELLO")
-	if err := UseOSLocale(); err != nil {
-		log.Debugf("Unable to detect and use OS locale: %v", err)
+	if _, err := UseOSLocale(); err != nil {
+		logger.Debugf("Unable to detect and use OS locale: %v", err)
 	}
 	assertTranslation(t, "I speak America English!", "ONLY_IN_EN_US")
 	assertTranslation(t, "I speak Generic English!", "ONLY_IN_EN")
@@ -18,20 +21,20 @@ func TestTranslate(t *testing.T) {
 	assertTranslation(t, "[NOT_EXISTED]", "NOT_EXISTED")
 
 	SetMessagesDir("not-existed-dir")
-	err := SetLocale("en_US")
+	_, err := SetLocale("en_US")
 	assert.Error(t, err, "should error if dir is not existed")
 
 	SetMessagesDir("locale")
-	assert.Error(t, SetLocale("e0"), "should error on malformed locale")
-	assert.Error(t, SetLocale("e0-DO"), "should error on malformed locale")
-	assert.Error(t, SetLocale("e0-DO.C"), "should error on malformed locale")
-	assert.NoError(t, SetLocale("en"), "should change locale")
-	if assert.NoError(t, SetLocale("en_US"), "should change locale") {
+	assert.Error(t, setLocale("e0"), "should error on malformed locale")
+	assert.Error(t, setLocale("e0-DO"), "should error on malformed locale")
+	assert.Error(t, setLocale("e0-DO.C"), "should error on malformed locale")
+	assert.NoError(t, setLocale("en"), "should change locale")
+	if assert.NoError(t, setLocale("en_US"), "should change locale") {
 		// formatting
 		assertTranslation(t, "Hello An Argument!", "HELLO", "An Argument")
 		assertTranslation(t, "[NOT_EXISTED]", "NOT_EXISTED", "extra args")
 	}
-	if assert.NoError(t, SetLocale("zh_CN"), "should change locale") {
+	if assert.NoError(t, setLocale("zh_CN"), "should change locale") {
 		assertTranslation(t, "An Argument你好!", "HELLO", "An Argument")
 		// fallbacks
 		assertTranslation(t, "I speak Mandarin!", "ONLY_IN_ZH_CN")
@@ -39,6 +42,11 @@ func TestTranslate(t *testing.T) {
 		assertTranslation(t, "I speak America English!", "ONLY_IN_EN_US")
 		assertTranslation(t, "I speak Generic English!", "ONLY_IN_EN")
 	}
+}
+
+func setLocale(locale string) error {
+	_, err := SetLocale(locale)
+	return err
 }
 
 func TestReadFromMemory(t *testing.T) {
@@ -52,18 +60,18 @@ func TestReadFromMemory(t *testing.T) {
 		return nil, nil
 	}
 	SetMessagesFunc(fromMemory)
-	if assert.NoError(t, SetLocale("en_US"), "should load en_US from memory") {
+	if assert.NoError(t, setLocale("en_US"), "should load en_US from memory") {
 		assertTranslation(t, "[ONLY_IN_ZH]", "ONLY_IN_ZH")
 	}
-	if assert.NoError(t, SetLocale("zh_CN"), "should load zh_CN from memory") {
+	if assert.NoError(t, setLocale("zh_CN"), "should load zh_CN from memory") {
 		assertTranslation(t, "I speak Chinese!", "ONLY_IN_ZH")
 	}
 }
 
 func TestGoroutine(t *testing.T) {
 	SetMessagesDir("locale")
-	if err := SetLocale("en_US"); err != nil {
-		log.Debugf("Unable to set en_US locale: %v", err)
+	if err := setLocale("en_US"); err != nil {
+		logger.Debugf("Unable to set en_US locale: %v", err)
 	}
 	var wg sync.WaitGroup
 	wg.Add(2)

@@ -18,13 +18,16 @@ import (
 // sequence given a file name
 type ReadFunc func(fileName string) ([]byte, error)
 
+const (
+	localeRegexp  = "^[a-z]{2}([_-][A-Z]{2}){0,1}$"
+	defaultLocale = "en_US"
+	defaultLang   = "en"
+)
+
 var (
-	localeRegexp  string   = "^[a-z]{2}([_-][A-Z]{2}){0,1}$"
-	log                    = golog.LoggerFor("i18n")
-	readFunc      ReadFunc = makeReadFunc("locale")
-	defaultLocale string   = "en_US"
-	defaultLang   string   = "en"
-	trMutex       sync.RWMutex
+	log      = golog.LoggerFor("i18n")
+	readFunc = makeReadFunc("locale")
+	trMutex  sync.RWMutex
 	// read from a nil map is ok, so leave it uninitialized here
 	trMap map[string]string
 )
@@ -70,7 +73,7 @@ func makeReadFunc(d string) ReadFunc {
 			return
 		}
 		defer func() {
-			if err := f.Close(); err != nil {
+			if err = f.Close(); err != nil {
 				log.Debugf("Unable to close file: %v", err)
 			}
 		}()
@@ -87,9 +90,10 @@ func SetMessagesFunc(f ReadFunc) {
 }
 
 // UseOSLocale detect OS locale for current user and let i18n to use it
-func UseOSLocale() error {
+func UseOSLocale() (string, error) {
 	userLocale, err := jibber_jabber.DetectIETF()
 	if err != nil || userLocale == "C" {
+		log.Debugf("Ignoring OS locale and using default")
 		userLocale = defaultLocale
 	}
 	log.Tracef("Using OS locale of current user: %v", userLocale)
@@ -99,9 +103,9 @@ func UseOSLocale() error {
 // SetLocale sets the current locale to the given value. If the locale is not in
 // a valid format, this function will return an error and leave the current
 // locale as is.
-func SetLocale(locale string) error {
+func SetLocale(locale string) (string, error) {
 	if matched, _ := regexp.MatchString(localeRegexp, locale); !matched {
-		return fmt.Errorf("Malformated locale string %s", locale)
+		return "", fmt.Errorf("Malformated locale string %s", locale)
 	}
 	locale = strings.Replace(locale, "-", "_", -1)
 	parts := strings.Split(locale, "_")
@@ -113,13 +117,13 @@ func SetLocale(locale string) error {
 	mergeLocaleToMap(newTrMap, lang)
 	mergeLocaleToMap(newTrMap, locale)
 	if len(newTrMap) == 0 {
-		return fmt.Errorf("Not found any translations, locale not set")
+		return "", fmt.Errorf("Not found any translations, locale not set")
 	}
 	log.Tracef("Translations: %v", newTrMap)
 	trMutex.Lock()
 	defer trMutex.Unlock()
 	trMap = newTrMap
-	return nil
+	return locale, nil
 }
 
 func mergeLocaleToMap(dst map[string]string, locale string) {
